@@ -1,9 +1,45 @@
+0.3.6:
+      Will fail if the keyguard cannot be disabled when starting the app.
+
+      If the app is not running calabash will now die instead of running around
+      like a serverless chicking.
+
+      On-device screenshots are still unstable but will no longer crash the app
+      if they fail.
+
+      Much better Cucumber output if the app is no longer running.
+
+0.3.5:
+      No longer takes screenshots when perform_action fails.
+      If you want to take screenshots when a scenario fails you can use a hook:
+
+      After do |scenario|
+        if scenario.failed?
+          screenshot_embed
+        end
+      end
+
+      This hook is now part of the generated skeleton.
+
+      Upgraded to Robotium 3.6 to support api level 17.
+
+      Fixed mock location.
+
+
+0.3.4:
+      Removed maps_unsupported
+      The test will fail at run time if the device does not have
+      com.google.android.maps installed.
+
+0.3.3:
+      A series of bugfixes.
+
 0.3.1:
       Will now create test_servers dir if it doesn't exist.
 
 0.3.0:
       The test server is no longer build from source by calabash-android.
-      Calabash-android now comes with a half-done test server that is missing an 
+      Calabash-android now comes with a half-done test server that is missing an
       AndroidManifest.xml and a signature.
       We will now inject a special crafted manifest that works with the app under test
       into the test server apk and sign it with the appropiate certificate.
@@ -146,7 +182,7 @@
       to stay backwards compatible with generated skeletons.
 
 0.2.0.pre2:
-      A HTTP server has been introduced in the test server so that we no 
+      A HTTP server has been introduced in the test server so that we no
       longer use socket for communication.
 
 0.2.0.pre1:

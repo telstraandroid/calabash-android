@@ -151,19 +151,29 @@ module Operations
       cmd = "#{adb_command} install \"#{app_path}\""
       log "Installing: #{app_path}"
       result = `#{cmd}`
-      if result.include? "Success"
-        log "Success"
-      else
-        log "#Failure"
-        log "'#{cmd}' said:"
-        log result.strip
-        raise "Could not install app #{app_path}: #{result.strip}"
+      log result
+      pn = package_name(app_path)
+      succeeded = `#{adb_command} shell pm list packages`.include?("package:#{pn}")
+
+      unless succeeded
+        Cucumber.wants_to_quit = true
+        raise "#{pn} did not get installed. Aborting!"
       end
     end
 
     def uninstall_app(package_name)
       log "Uninstalling: #{package_name}"
       log `#{adb_command} uninstall #{package_name}`
+    end
+
+    def app_running?
+      `#{adb_command} shell ps`.include?(package_name(@app_path))
+    end
+
+    def keyguard_enabled?
+      dumpsys = `#{adb_command} shell dumpsys window windows`
+      #If a line containing mCurrentFocus and Keyguard exists the keyguard is enabled
+      dumpsys.lines.any? { |l| l.include?("mCurrentFocus") and l.include?("Keyguard")}
     end
 
     def perform_action(action, *arguments)
@@ -173,7 +183,7 @@ module Operations
 
       Timeout.timeout(300) do
         begin
-          result = http("/", params)
+          result = http("/", params, {:read_timeout => 350})
         rescue Exception => e
           log "Error communicating with test server: #{e}"
           raise e
@@ -182,29 +192,27 @@ module Operations
         raise "Empty result from TestServer" if result.chomp.empty?
         result = JSON.parse(result)
         if not result["success"] then
-          @cucumber_world.screenshot_embed
-          if result["bonusInformation"] && result["bonusInformation"].size > 0 && result["bonusInformation"][0].include?("Exception")
-            log result["bonusInformation"][0]
-          end
           raise "Step unsuccessful: #{result["message"]}"
         end
-        return result
+        result
       end
     rescue Timeout::Error
       raise Exception, "Step timed out"
     end
 
-    def http(path, data = {})
-      retries = 0
+    def http(path, data = {}, options = {})
       begin
         http = Net::HTTP.new "127.0.0.1", @server_port
+        http.open_timeout = options[:open_timeout] if options[:open_timeout]
+        http.read_timeout = options[:read_timeout] if options[:read_timeout]
         resp = http.post(path, "#{data.to_json}", {"Content-Type" => "application/json;charset=utf-8"})
         resp.body
       rescue Exception => e
-        raise e if retries > 20
-        sleep 0.5
-        retries += 1
-        retry
+        if app_running?
+          raise e
+        else
+          raise "App no longer running"
+        end
       end
     end
 
@@ -284,19 +292,32 @@ module Operations
       log "Waking up device using:"
       log wake_up_cmd
       raise "Could not wake up the device" unless system(wake_up_cmd)
+
+      retriable :tries => 10, :interval => 1 do
+        raise "Could not remove the keyguard" if keyguard_enabled?
+      end
     end
 
     def start_test_server_in_background
+      raise "Will not start test server because of previous failures." if Cucumber.wants_to_quit
+
+      if keyguard_enabled?
+        wake_up
+      end
+
       cmd = "#{adb_command} shell am instrument -e target_package #{ENV["PACKAGE_NAME"]} -e main_activity #{ENV["MAIN_ACTIVITY"]} -e class sh.calaba.instrumentationbackend.InstrumentationBackend sh.calaba.android.test/sh.calaba.instrumentationbackend.CalabashInstrumentationTestRunner"
       log "Starting test server using:"
       log cmd
       raise "Could not execute command to start test server" unless system("#{cmd} 2>&1")
 
+      raise "App did not start" unless app_running?
+
       begin
         retriable :tries => 10, :interval => 3 do
             log "Checking if instrumentation backend is ready"
-            ready = http("/ready")
 
+            log "Is app running? #{app_running?}"
+            ready = http("/ready", {}, {:read_timeout => 1})
             if ready != "true"
               log "Instrumentation backend not yet ready"
               raise "Not ready"
@@ -453,7 +474,7 @@ module Operations
   def backdoor(sel, arg)
     ni
   end
-  
+
   def map( query, method_name, *method_args )
     ni
   end
