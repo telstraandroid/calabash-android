@@ -18,13 +18,13 @@ public class CheckBoxIndexChecked implements Action{
         
     	if (isChecked) {
     		result.addBonusInformation("Yes");
-    		System.out.println("button is selected");
+    		System.out.println("checkbox is checked");
     	} else {
     		result.addBonusInformation("No");
-    		System.out.println("button not selected");
+    		System.out.println("Checkbox is not checked");
     	}
         
-        return Result.successResult();
+        return result;
 	}
 
 	@Override
