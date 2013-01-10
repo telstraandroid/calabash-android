@@ -10,3 +10,4 @@ ruby-gem/pkg
 ruby-gem/lib/calabash-android/lib/TestServer.apk
 .rbenv-version
 calabash-android-*.gem
+.idea/
